@@ -14,13 +14,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0a0d14',
+  themeColor: '#0c0e13',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-[#0a0d14] text-white min-h-screen`}>
+      <body className={inter.className} style={{ background: 'var(--bg)', color: 'var(--text)', minHeight: '100vh' }}>
         <PersonaProvider>
           <div className="flex min-h-screen">
             <Navbar />

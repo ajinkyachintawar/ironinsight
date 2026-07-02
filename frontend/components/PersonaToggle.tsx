@@ -2,24 +2,29 @@
 import { usePersona } from '@/lib/PersonaContext'
 import { Persona } from '@/lib/types'
 
-const PERSONAS: { id: Persona; label: string; icon: string }[] = [
-  { id: 'athlete', label: 'Athlete', icon: '🏋️' },
-  { id: 'trainer', label: 'Trainer', icon: '📋' },
-  { id: 'doctor',  label: 'Doctor',  icon: '🩺' },
+const PERSONAS: { id: Persona; label: string }[] = [
+  { id: 'athlete', label: 'Athlete' },
+  { id: 'trainer', label: 'Trainer' },
+  { id: 'doctor',  label: 'Doctor'  },
 ]
 
 export default function PersonaToggle() {
   const { persona, setPersona } = usePersona()
   return (
-    <div className="flex gap-1 bg-white/5 rounded-xl p-1 border border-white/10">
+    <div style={{
+      display: 'flex', gap: 2, padding: 3, borderRadius: 8,
+      background: 'var(--surface-2)', border: '1px solid var(--border)',
+    }}>
       {PERSONAS.map(p => (
         <button key={p.id} onClick={() => setPersona(p.id)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
-            ${persona === p.id
-              ? 'bg-blue-500 text-white shadow-sm'
-              : 'text-slate-400 hover:text-white'}`}>
-          <span>{p.icon}</span>
-          <span className="hidden sm:inline">{p.label}</span>
+          style={{
+            padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+            border: 'none', cursor: 'pointer', transition: 'all 0.12s',
+            background: persona === p.id ? 'var(--surface)' : 'transparent',
+            color: persona === p.id ? 'var(--text)' : 'var(--text-2)',
+            boxShadow: persona === p.id ? '0 1px 3px rgba(0,0,0,0.3)' : 'none',
+          }}>
+          {p.label}
         </button>
       ))}
     </div>

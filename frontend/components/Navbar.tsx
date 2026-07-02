@@ -3,9 +3,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const links = [
-  { href: '/',         label: 'Live',    icon: '⚡' },
-  { href: '/summary',  label: 'Summary', icon: '📊' },
-  { href: '/history',  label: 'History', icon: '🗂️' },
+  { href: '/',        label: 'Live Session' },
+  { href: '/summary', label: 'Summary'      },
+  { href: '/history', label: 'History'      },
 ]
 
 export default function Navbar() {
@@ -14,35 +14,68 @@ export default function Navbar() {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-56 bg-[#0f1117] border-r border-white/8 p-6 gap-8 fixed h-full z-10">
-        <div className="flex items-center gap-2">
-          <span className="text-blue-400 text-xl font-black tracking-tight">IRON</span>
-          <span className="text-white text-xl font-black tracking-tight">INSIGHT</span>
+      <aside className="hidden md:flex flex-col w-52 fixed h-full z-10"
+        style={{ background: 'var(--surface)', borderRight: '1px solid var(--border)' }}>
+        <div className="px-6 pt-7 pb-8">
+          <span style={{ color: 'var(--text)', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>
+            Iron<span style={{ color: 'var(--accent)' }}>Insight</span>
+          </span>
         </div>
-        <nav className="flex flex-col gap-1">
-          {links.map(l => (
-            <Link key={l.href} href={l.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                ${path === l.href
-                  ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
-              <span>{l.icon}</span>{l.label}
-            </Link>
-          ))}
+        <nav className="flex flex-col gap-0.5 px-3">
+          {links.map(l => {
+            const active = path === l.href
+            return (
+              <Link key={l.href} href={l.href}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '8px 12px',
+                  borderRadius: 7,
+                  fontSize: 13,
+                  fontWeight: active ? 600 : 400,
+                  color: active ? 'var(--text)' : 'var(--text-2)',
+                  background: active ? 'var(--surface-2)' : 'transparent',
+                  textDecoration: 'none',
+                  transition: 'all 0.12s',
+                }}>
+                <span style={{
+                  width: 4, height: 14, borderRadius: 2,
+                  background: active ? 'var(--accent)' : 'transparent',
+                  flexShrink: 0,
+                }} />
+                {l.label}
+              </Link>
+            )
+          })}
         </nav>
       </aside>
 
       {/* Mobile bottom bar */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-10 bg-[#0f1117] border-t border-white/8
-        flex items-center justify-around px-2 py-2 safe-area-inset-bottom">
-        {links.map(l => (
-          <Link key={l.href} href={l.href}
-            className={`flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-lg text-xs font-medium transition-colors
-              ${path === l.href ? 'text-blue-400' : 'text-slate-500'}`}>
-            <span className="text-xl">{l.icon}</span>
-            {l.label}
-          </Link>
-        ))}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-10 safe-area-inset-bottom"
+        style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+        <div className="flex items-center justify-around px-2 py-2">
+          {links.map(l => {
+            const active = path === l.href
+            const short  = l.label === 'Live Session' ? 'Live' : l.label
+            return (
+              <Link key={l.href} href={l.href}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                  padding: '6px 16px', borderRadius: 8,
+                  fontSize: 11, fontWeight: active ? 600 : 400,
+                  color: active ? 'var(--text)' : 'var(--text-2)',
+                  textDecoration: 'none',
+                }}>
+                <span style={{
+                  width: 20, height: 2, borderRadius: 1,
+                  background: active ? 'var(--accent)' : 'transparent',
+                }} />
+                {short}
+              </Link>
+            )
+          })}
+        </div>
       </nav>
     </>
   )

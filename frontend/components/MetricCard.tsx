@@ -6,23 +6,27 @@ interface Props {
   highlight?: 'red' | 'yellow' | 'green' | 'blue'
 }
 
-const highlights = {
-  red:    'border-red-500 bg-red-950/30',
-  yellow: 'border-yellow-400 bg-yellow-950/20',
-  green:  'border-green-500 bg-green-950/20',
-  blue:   'border-blue-500 bg-blue-950/20',
+const borderColors = {
+  red:    'var(--red)',
+  yellow: 'var(--amber)',
+  green:  'var(--green)',
+  blue:   'var(--accent)',
 }
 
 export default function MetricCard({ label, value, unit, sub, highlight }: Props) {
   return (
-    <div className={`rounded-xl border p-4 flex flex-col gap-1 transition-colors duration-300
-      ${highlight ? highlights[highlight] : 'border-white/10 bg-white/5'}`}>
-      <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">{label}</span>
-      <div className="flex items-end gap-1">
-        <span className="text-3xl font-black text-white leading-none">{value}</span>
-        {unit && <span className="text-sm text-slate-400 mb-0.5">{unit}</span>}
+    <div style={{
+      padding: '14px 16px', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 4,
+      background: 'var(--surface)', border: '1px solid var(--border)',
+      borderLeft: highlight ? `3px solid ${borderColors[highlight]}` : '1px solid var(--border)',
+      transition: 'border-color 0.25s',
+    }}>
+      <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 500 }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+        <span style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>{value}</span>
+        {unit && <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{unit}</span>}
       </div>
-      {sub && <span className="text-xs text-slate-500">{sub}</span>}
+      {sub && <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{sub}</span>}
     </div>
   )
 }

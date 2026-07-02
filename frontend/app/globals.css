@@ -1,17 +1,37 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0d14;
-  --foreground: #f8fafc;
+  --bg:         #0c0e13;
+  --surface:    #13161e;
+  --surface-2:  #1a1e2a;
+  --border:     #21253a;
+  --border-2:   #2d3247;
+  --text:       #dde1ec;
+  --text-2:     #6e7490;
+  --text-3:     #454a62;
+  --accent:     #3d6aff;
+  --accent-dim: rgba(61,106,255,0.10);
+  --red:        #d95050;
+  --red-dim:    rgba(217,80,80,0.10);
+  --amber:      #c97b2a;
+  --amber-dim:  rgba(201,123,42,0.10);
+  --green:      #35a86e;
+  --green-dim:  rgba(53,168,110,0.10);
 }
 
 * { box-sizing: border-box; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Safe area for mobile notch / home bar */
 .safe-area-inset-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* Status dot animation — very subtle, not neon */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+.pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
