@@ -65,16 +65,19 @@ async def get_acwr(user_id: str, db: DBSession = Depends(get_db)):
 # ------------------------------------------------------------------
 
 @app.websocket("/ws/session/{user_id}")
-async def session_ws(websocket: WebSocket, user_id: str,
-                     db: DBSession = Depends(get_db)):
+async def session_ws(websocket: WebSocket, user_id: str):
     await websocket.accept()
 
+    # Depends(get_db) doesn't work on WebSocket routes — open manually
+    db = next(get_db())
+
     adapter  = MockWearableAdapter()
-    user     = db.query(__import__("backend.db", fromlist=["User"]).User).filter_by(id=user_id).first()
-    max_hr   = user.max_hr   if user else 192
+    from .db import User
+    user     = db.query(User).filter_by(id=user_id).first()
+    max_hr   = user.max_hr     if user else 192
     rest_hr  = user.resting_hr if user else 62
 
-    engine   = FatigueEngine(max_hr=max_hr, resting_hr=rest_hr)
+    engine     = FatigueEngine(max_hr=max_hr, resting_hr=rest_hr)
     session_id = sm.start_session(db, user_id, recovery_score=adapter.get_recovery_score())
 
     current_exercise  = "UNKNOWN"
@@ -135,3 +138,4 @@ async def session_ws(websocket: WebSocket, user_id: str,
         )
         print(f"[{session_id}] quality={summary.get('quality_score')}/100 "
               f"avg_hr={summary.get('avg_hr')} strain={adapter.get_session_strain():.2f}")
+        db.close()

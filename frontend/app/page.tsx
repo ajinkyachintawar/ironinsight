@@ -1,304 +1,316 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useSession } from '@/lib/useSession'
-import { usePersona } from '@/lib/PersonaContext'
 import HRChart from '@/components/HRChart'
-import MetricCard from '@/components/MetricCard'
 import ZoneBadge from '@/components/ZoneBadge'
-import FatigueAlert from '@/components/FatigueAlert'
-import PersonaToggle from '@/components/PersonaToggle'
+import RingGauge from '@/components/RingGauge'
 import { EXERCISES, HRZone } from '@/lib/types'
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
-// ponytail: hardcoded demo user — wired to auth later
-const DEMO_USER_ID = 'demo-user-001'
+const API       = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+const DEMO_USER = 'demo-user-001'
+const MAX_HR    = 195
+
+const EXERCISE_LABELS: Record<string, string> = {
+  CURL: 'Bicep Curl', SQUAT: 'Squat', BENCH: 'Bench Press', TREAD: 'Treadmill',
+}
 
 function useBackendHealth() {
-  const [status, setStatus] = useState<'checking' | 'ok' | 'error'>('checking')
+  const [ok, setOk] = useState<boolean | null>(null)
   useEffect(() => {
-    fetch(`${API}/health`)
-      .then(r => r.ok ? setStatus('ok') : setStatus('error'))
-      .catch(() => setStatus('error'))
+    fetch(`${API}/health`).then(r => setOk(r.ok)).catch(() => setOk(false))
   }, [])
-  return status
+  return ok
+}
+
+/* ── Stat tile ── */
+function Tile({ label, value, unit, sub, accent }: {
+  label: string; value: string | number; unit?: string; sub?: string; accent?: string
+}) {
+  return (
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+      padding: '18px 18px',
+    }}>
+      <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+        {label}
+      </p>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+        <span style={{ fontSize: 34, fontWeight: 700, lineHeight: 1, color: accent ?? 'var(--text)' }}>
+          {value}
+        </span>
+        {unit && <span style={{ fontSize: 13, color: 'var(--text-2)' }}>{unit}</span>}
+      </div>
+      {sub && <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>{sub}</p>}
+    </div>
+  )
 }
 
 export default function LivePage() {
-  const { tick, hrHistory, isActive, sessionId, exercise, start, end, changeExercise } = useSession(DEMO_USER_ID)
-  const { persona } = usePersona()
-  const backendStatus = useBackendHealth()
-  const [showExPicker, setShowExPicker] = useState(false)
-  const [showPanel, setShowPanel] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const { tick, hrHistory, isActive, sessionId, exercise, start, end, changeExercise } = useSession(DEMO_USER)
+  const backendOk = useBackendHealth()
+  const [showEx,  setShowEx]  = useState(false)
+  const [showSys, setShowSys] = useState(false)
+  const [copied,  setCopied]  = useState(false)
 
   const struggling = tick?.struggling ?? false
   const redline    = tick?.redline    ?? false
+  const hrPct      = tick ? Math.round((tick.hr / MAX_HR) * 100) : null
+  const hrColor    = redline ? '#e54444' : struggling ? '#f0a030' : '#00d4e8'
+  const strainPct  = tick ? Math.min(100, (tick.strain / 21) * 100) : 0
+  const strainCol  = strainPct > 76 ? '#e54444' : strainPct > 48 ? '#f0a030' : '#28cc6b'
+  const recCol     = tick ? (tick.recovery >= 67 ? '#28cc6b' : tick.recovery >= 34 ? '#f0a030' : '#e54444') : '#404660'
 
-  function copySessionId() {
+  function copySession() {
     if (!sessionId) return
     navigator.clipboard.writeText(sessionId)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
 
-  const exerciseLabels: Record<string, string> = {
-    CURL: 'Bicep Curl', SQUAT: 'Squat', BENCH: 'Bench Press', TREAD: 'Treadmill',
-  }
-
   return (
-    <div style={{ padding: '28px 24px', maxWidth: 720 }}>
+    /* Outer padding; two-col on desktop */
+    <div style={{ padding: '28px 24px', maxWidth: 1100 }}>
 
-      {/* Header row */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 24 }}>
+      {/* ── Page header ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, letterSpacing: '-0.02em', color: 'var(--text)' }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text)' }}>
             Live Session
           </h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5 }}>
             <span className={isActive ? 'pulse-dot' : ''} style={{
-              width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-              background: isActive ? 'var(--green)' : 'var(--text-3)',
+              width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+              background: isActive ? '#28cc6b' : 'var(--text-3)',
             }} />
-            <span style={{ fontSize: 12, color: 'var(--text-2)' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-2)' }}>
               {isActive ? `Recording · ${sessionId?.slice(-8) ?? ''}` : 'Not recording'}
             </span>
           </div>
         </div>
-        <PersonaToggle />
-      </div>
-
-      {/* Fatigue alert */}
-      {(struggling || redline) && (
-        <div style={{ marginBottom: 16 }}>
-          <FatigueAlert struggling={struggling} redline={redline} />
-        </div>
-      )}
-
-      {/* HR card */}
-      <div style={{
-        borderRadius: 12, padding: '20px 22px', marginBottom: 16,
-        background: 'var(--surface)', border: `1px solid ${redline ? 'var(--red)' : struggling ? 'var(--amber)' : 'var(--border)'}`,
-        transition: 'border-color 0.3s',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div>
-            <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 500 }}>Heart Rate</span>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
-              <span style={{
-                fontSize: 52, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.03em',
-                color: redline ? 'var(--red)' : struggling ? 'var(--amber)' : 'var(--text)',
-                transition: 'color 0.3s',
-              }}>
-                {tick?.hr ?? '--'}
-              </span>
-              <span style={{ fontSize: 14, color: 'var(--text-2)' }}>BPM</span>
-            </div>
-          </div>
-          {tick && <ZoneBadge zone={tick.hr_zone as HRZone} />}
-        </div>
-        <div style={{ height: 120 }}>
-          <HRChart data={hrHistory} struggling={struggling || redline} />
-        </div>
-      </div>
-
-      {/* Metrics grid — varies by persona */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
-        {persona === 'athlete' && <>
-          <MetricCard label="HRV" value={tick?.hrv?.toFixed(1) ?? '--'} unit="ms"
-            sub={tick?.hrv_drop_pct != null ? `${tick.hrv_drop_pct > 0 ? '-' : '+'}${Math.abs(tick.hrv_drop_pct)}% from start` : undefined}
-            highlight={tick?.hrv_drop_pct != null && tick.hrv_drop_pct > 20 ? 'yellow' : undefined} />
-          <MetricCard label="Strain" value={tick?.strain?.toFixed(1) ?? '--'} unit="/21"
-            sub={tick ? (tick.strain < 8 ? 'Low' : tick.strain < 14 ? 'Moderate' : 'High') : undefined}
-            highlight={tick?.strain != null && tick.strain > 14 ? 'red' : undefined} />
-          <MetricCard label="Recovery" value={tick?.recovery?.toFixed(0) ?? '--'} unit="%"
-            highlight={tick?.recovery != null ? (tick.recovery >= 67 ? 'green' : tick.recovery >= 34 ? 'yellow' : 'red') : undefined} />
-          <MetricCard label="Redlines" value={tick?.redline_event_count ?? '--'} sub="this session"
-            highlight={tick?.redline_event_count ? 'red' : undefined} />
-        </>}
-
-        {persona === 'trainer' && <>
-          <MetricCard label="Zone" value={tick ? `Z${tick.hr_zone}` : '--'}
-            sub={tick ? (tick.hr_zone >= 4 ? 'Hard effort' : tick.hr_zone === 3 ? 'Threshold' : 'Light') : undefined}
-            highlight={tick?.hr_zone === 5 ? 'red' : tick?.hr_zone === 4 ? 'yellow' : 'green'} />
-          <MetricCard label="HRV Drop" value={tick?.hrv_drop_pct?.toFixed(0) ?? '--'} unit="%"
-            sub="from session start"
-            highlight={tick?.hrv_drop_pct != null && tick.hrv_drop_pct > 20 ? 'red' : undefined} />
-          <MetricCard label="Struggling" value={struggling ? 'Yes' : 'No'}
-            highlight={struggling ? 'red' : 'green'} />
-          <MetricCard label="Strain" value={tick?.strain?.toFixed(1) ?? '--'} unit="/21"
-            highlight={tick?.strain != null && tick.strain > 14 ? 'red' : undefined} />
-        </>}
-
-        {persona === 'doctor' && <>
-          <MetricCard label="Redlines" value={tick?.redline_event_count ?? '--'} sub="events"
-            highlight={tick?.redline_event_count ? 'red' : 'green'} />
-          <MetricCard label="HRV" value={tick?.hrv?.toFixed(1) ?? '--'} unit="ms"
-            highlight={tick?.hrv != null && tick.hrv < 25 ? 'red' : undefined} />
-          <MetricCard label="% Max HR" value={tick ? `${Math.round((tick.hr / 192) * 100)}` : '--'} unit="%"
-            highlight={tick && tick.hr / 192 > 0.95 ? 'red' : tick && tick.hr / 192 > 0.88 ? 'yellow' : undefined} />
-          <MetricCard label="Struggling" value={struggling ? 'Yes' : 'No'}
-            highlight={struggling ? 'red' : 'green'} />
-        </>}
-      </div>
-
-      {/* Exercise selector */}
-      <div style={{
-        borderRadius: 10, padding: '14px 16px', marginBottom: 16,
-        background: 'var(--surface)', border: '1px solid var(--border)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showExPicker ? 12 : 0 }}>
-          <div>
-            <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 500 }}>Current Exercise</span>
-            <p style={{ fontSize: 14, fontWeight: 600, margin: '2px 0 0', color: 'var(--text)' }}>
-              {exerciseLabels[exercise] ?? exercise}
-            </p>
-          </div>
-          {isActive && (
-            <button onClick={() => setShowExPicker(v => !v)}
-              style={{
-                fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 6,
-                border: '1px solid var(--border-2)', background: 'var(--surface-2)',
-                color: 'var(--text-2)', cursor: 'pointer',
-              }}>
-              {showExPicker ? 'Close' : 'Change'}
-            </button>
-          )}
-        </div>
-        {showExPicker && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-            {EXERCISES.map(ex => (
-              <button key={ex} onClick={() => { changeExercise(ex); setShowExPicker(false) }}
-                style={{
-                  padding: '8px 12px', borderRadius: 7, fontSize: 13, fontWeight: 500,
-                  cursor: 'pointer', transition: 'all 0.12s', textAlign: 'left',
-                  border: `1px solid ${exercise === ex ? 'var(--accent)' : 'var(--border)'}`,
-                  background: exercise === ex ? 'var(--accent-dim)' : 'var(--surface-2)',
-                  color: exercise === ex ? 'var(--accent)' : 'var(--text-2)',
-                }}>
-                {exerciseLabels[ex]}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Session controls */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
-        {!isActive ? (
-          <button onClick={start} style={{
-            flex: 1, padding: '12px 0', borderRadius: 9, fontSize: 14, fontWeight: 600,
-            border: 'none', cursor: 'pointer', background: 'var(--accent)', color: '#fff',
-            transition: 'opacity 0.15s',
-          }}
-            onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
-            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
-            Start Session
-          </button>
-        ) : (
-          <button onClick={end} style={{
-            flex: 1, padding: '12px 0', borderRadius: 9, fontSize: 14, fontWeight: 600,
-            border: '1px solid var(--red)', cursor: 'pointer',
-            background: 'var(--red-dim)', color: 'var(--red)', transition: 'opacity 0.15s',
-          }}
-            onMouseEnter={e => (e.currentTarget.style.opacity = '0.75')}
-            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
-            End Session
-          </button>
-        )}
-      </div>
-
-      {/* System status panel — replaces terminal testing */}
-      <div style={{ borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
-        <button onClick={() => setShowPanel(v => !v)}
-          style={{
-            width: '100%', padding: '11px 16px', background: 'var(--surface)',
-            border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
-            justifyContent: 'space-between',
+        {(redline || struggling) && (
+          <div style={{
+            padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600,
+            background: redline ? 'var(--red-dim)' : 'var(--amber-dim)',
+            color: redline ? '#e54444' : '#f0a030',
+            border: `1px solid ${redline ? 'rgba(229,68,68,0.4)' : 'rgba(240,160,48,0.4)'}`,
           }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>System Status</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: backendStatus === 'ok' ? 'var(--green)' : backendStatus === 'error' ? 'var(--red)' : 'var(--text-3)',
-            }} />
-            <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{showPanel ? 'Hide' : 'Show'}</span>
+            {redline ? 'Redline' : 'Struggling'}
           </div>
-        </button>
+        )}
+      </div>
 
-        {showPanel && (
-          <div style={{ background: 'var(--surface-2)', borderTop: '1px solid var(--border)', padding: '14px 16px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <tbody>
-                <Row label="Backend" value={
-                  backendStatus === 'ok' ? 'Connected' : backendStatus === 'error' ? 'Unreachable' : 'Checking...'
-                } valueColor={backendStatus === 'ok' ? 'var(--green)' : backendStatus === 'error' ? 'var(--red)' : 'var(--text-2)'} />
-                <Row label="WebSocket" value={isActive ? 'Active' : 'Idle'}
-                  valueColor={isActive ? 'var(--green)' : 'var(--text-2)'} />
-                <Row label="API base" value={API} mono />
-                <Row label="User ID"  value={DEMO_USER_ID} mono />
-                {sessionId && (
-                  <tr>
-                    <td style={{ fontSize: 11, color: 'var(--text-2)', paddingBottom: 8, paddingRight: 12, verticalAlign: 'top' }}>Session ID</td>
-                    <td style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text)', paddingBottom: 8 }}>
-                      <span style={{ marginRight: 8 }}>{sessionId}</span>
-                      <button onClick={copySessionId}
-                        style={{
-                          fontSize: 10, padding: '2px 8px', borderRadius: 4,
-                          border: '1px solid var(--border-2)', background: 'transparent',
-                          color: 'var(--text-2)', cursor: 'pointer',
-                        }}>
-                        {copied ? 'Copied' : 'Copy'}
-                      </button>
-                    </td>
-                  </tr>
+      {/* ── Two-column desktop layout ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}
+        className="md:grid-cols-[1fr_340px]">
+
+        {/* LEFT column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* HR Card */}
+          <div style={{
+            background: 'var(--surface)', border: `2px solid ${redline ? 'rgba(229,68,68,0.5)' : struggling ? 'rgba(240,160,48,0.4)' : 'var(--border)'}`,
+            borderRadius: 18, padding: '24px 24px 18px',
+            transition: 'border-color 0.4s',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                  Heart Rate
+                </p>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                  <span style={{ fontSize: 80, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: hrColor }}>
+                    {tick?.hr ?? '--'}
+                  </span>
+                  <span style={{ fontSize: 18, fontWeight: 400, color: 'var(--text-2)' }}>BPM</span>
+                </div>
+                <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 6 }}>
+                  {hrPct != null ? `${hrPct}% of max HR` : 'Start a session to stream live data'}
+                </p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
+                {tick && <ZoneBadge zone={tick.hr_zone as HRZone} />}
+                {tick?.hrv != null && (
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ fontSize: 10, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>HRV</p>
+                    <p style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>
+                      {tick.hrv.toFixed(0)}
+                      <span style={{ fontSize: 12, color: 'var(--text-2)', marginLeft: 3 }}>ms</span>
+                    </p>
+                  </div>
                 )}
-              </tbody>
-            </table>
-
-            {/* Quick endpoint links */}
-            <div style={{ marginTop: 8, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-              <p style={{ fontSize: 11, color: 'var(--text-2)', marginBottom: 8, fontWeight: 500 }}>Endpoints</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {[
-                  { label: 'Health', path: '/health' },
-                  { label: 'History', path: `/api/history/${DEMO_USER_ID}` },
-                  { label: 'ACWR', path: `/api/acwr/${DEMO_USER_ID}` },
-                  ...(sessionId ? [{ label: 'This session', path: `/api/session/${sessionId}` }] : []),
-                ].map(ep => (
-                  <a key={ep.path} href={`${API}${ep.path}`} target="_blank" rel="noreferrer"
-                    style={{
-                      fontSize: 11, padding: '4px 10px', borderRadius: 5,
-                      border: '1px solid var(--border-2)', background: 'var(--surface)',
-                      color: 'var(--text-2)', textDecoration: 'none',
-                    }}>
-                    {ep.label}
-                  </a>
-                ))}
               </div>
             </div>
+            {/* Chart */}
+            <div style={{ height: 110, marginTop: 10 }}>
+              <HRChart data={hrHistory} maxHr={MAX_HR} struggling={struggling} redline={redline} />
+            </div>
           </div>
-        )}
+
+          {/* Ring gauges — Strain / Recovery / HRV Drop */}
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 18,
+            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', padding: '24px 12px',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'center', paddingRight: 12, borderRight: '1px solid var(--border)' }}>
+              <RingGauge value={strainPct} max={100} size={120} stroke={10}
+                color={strainCol} label="Strain"
+                sublabel={tick ? `${tick.strain.toFixed(1)}/21` : '0/21'} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', borderRight: '1px solid var(--border)' }}>
+              <RingGauge value={tick?.recovery ?? 0} max={100} size={120} stroke={10}
+                color={recCol} label="Recovery" sublabel="%" />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', paddingLeft: 12 }}>
+              <RingGauge
+                value={Math.min(100, Math.abs(tick?.hrv_drop_pct ?? 0))} max={50} size={120} stroke={10}
+                color={tick?.hrv_drop_pct != null && tick.hrv_drop_pct > 20 ? '#e54444' : '#4a7eff'}
+                label="HRV Drop"
+                sublabel={tick?.hrv_drop_pct != null ? `${tick.hrv_drop_pct.toFixed(0)}%` : '0%'}
+              />
+            </div>
+          </div>
+
+          {/* Redlines + Ticks */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <Tile
+              label="Redlines"
+              value={tick?.redline_event_count ?? 0}
+              sub="this session"
+              accent={tick?.redline_event_count ? '#e54444' : undefined}
+            />
+            <Tile
+              label="Elapsed"
+              value={tick ? `${Math.round(tick.tick * 0.5)}` : '0'}
+              unit="sec"
+              sub={tick ? `tick ${tick.tick}` : 'waiting'}
+            />
+          </div>
+        </div>
+
+        {/* RIGHT column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Exercise */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 18px' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+              Exercise
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showEx ? 14 : 0 }}>
+              <p style={{ fontSize: 17, fontWeight: 600, color: 'var(--text)' }}>
+                {EXERCISE_LABELS[exercise] ?? exercise}
+              </p>
+              {isActive && (
+                <button onClick={() => setShowEx(v => !v)} style={{
+                  padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 500,
+                  background: 'var(--surface-2)', border: '1px solid var(--border)',
+                  color: 'var(--text-2)', cursor: 'pointer',
+                }}>
+                  {showEx ? 'Close' : 'Change'}
+                </button>
+              )}
+            </div>
+            {showEx && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {EXERCISES.map(ex => (
+                  <button key={ex} onClick={() => { changeExercise(ex); setShowEx(false) }} style={{
+                    padding: '9px 10px', borderRadius: 8, fontSize: 12, fontWeight: 500,
+                    textAlign: 'left', cursor: 'pointer',
+                    background: exercise === ex ? 'var(--blue-dim)' : 'var(--surface-2)',
+                    border: `1px solid ${exercise === ex ? 'rgba(74,126,255,0.45)' : 'var(--border)'}`,
+                    color: exercise === ex ? '#4a7eff' : 'var(--text-2)',
+                  }}>
+                    {EXERCISE_LABELS[ex]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Session control */}
+          {!isActive ? (
+            <button onClick={start} style={{
+              padding: '15px', borderRadius: 12, fontSize: 15, fontWeight: 700,
+              background: '#28cc6b', color: '#040608', border: 'none', cursor: 'pointer',
+              letterSpacing: '-0.01em',
+            }}>
+              Start Session
+            </button>
+          ) : (
+            <button onClick={end} style={{
+              padding: '15px', borderRadius: 12, fontSize: 15, fontWeight: 600,
+              background: 'var(--red-dim)', color: '#e54444',
+              border: '1px solid rgba(229,68,68,0.35)', cursor: 'pointer',
+            }}>
+              End Session
+            </button>
+          )}
+
+          {/* System status */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+            <button onClick={() => setShowSys(v => !v)} style={{
+              width: '100%', padding: '13px 16px', background: 'transparent',
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <span style={{ fontSize: 12, color: 'var(--text-2)', fontWeight: 500 }}>System</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <span style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: backendOk === true ? '#28cc6b' : backendOk === false ? '#e54444' : 'var(--text-3)',
+                }} />
+                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                  {backendOk === true ? 'Backend OK' : backendOk === false ? 'Unreachable' : 'Checking'}
+                </span>
+              </div>
+            </button>
+            {showSys && (
+              <div style={{ padding: '12px 16px 14px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {[
+                  { label: 'WebSocket', val: isActive ? 'Active' : 'Idle',  color: isActive ? '#28cc6b' : undefined },
+                  { label: 'API',      val: API,          mono: true },
+                  { label: 'User',     val: DEMO_USER,    mono: true },
+                  ...(sessionId ? [{ label: 'Session', val: sessionId, mono: true, copy: true }] : []),
+                ].map(row => (
+                  <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-2)' }}>{row.label}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <span style={{ color: row.color ?? 'var(--text)', fontFamily: row.mono ? 'monospace' : undefined, fontSize: 11, wordBreak: 'break-all' }}>
+                        {row.val}
+                      </span>
+                      {row.copy && (
+                        <button onClick={copySession} style={{
+                          fontSize: 10, padding: '2px 7px', borderRadius: 4,
+                          border: '1px solid var(--border)', background: 'transparent',
+                          color: 'var(--text-2)', cursor: 'pointer',
+                        }}>
+                          {copied ? 'Copied' : 'Copy'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ marginTop: 6, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {[
+                    { label: 'Health',  path: '/health' },
+                    { label: 'History', path: `/api/history/${DEMO_USER}` },
+                    { label: 'ACWR',    path: `/api/acwr/${DEMO_USER}` },
+                    ...(sessionId ? [{ label: 'Session', path: `/api/session/${sessionId}` }] : []),
+                  ].map(ep => (
+                    <a key={ep.path} href={`${API}${ep.path}`} target="_blank" rel="noreferrer"
+                      style={{
+                        fontSize: 11, padding: '4px 10px', borderRadius: 6,
+                        border: '1px solid var(--border)', background: 'var(--surface-2)',
+                        color: 'var(--text-2)', textDecoration: 'none',
+                      }}>
+                      {ep.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
-  )
-}
-
-function Row({ label, value, mono, valueColor }: {
-  label: string; value: string; mono?: boolean; valueColor?: string
-}) {
-  return (
-    <tr>
-      <td style={{ fontSize: 11, color: 'var(--text-2)', paddingBottom: 8, paddingRight: 12, whiteSpace: 'nowrap', verticalAlign: 'top' }}>
-        {label}
-      </td>
-      <td style={{
-        fontSize: 11, paddingBottom: 8,
-        fontFamily: mono ? 'monospace' : 'inherit',
-        color: valueColor ?? 'var(--text)',
-        wordBreak: 'break-all',
-      }}>
-        {value}
-      </td>
-    </tr>
   )
 }

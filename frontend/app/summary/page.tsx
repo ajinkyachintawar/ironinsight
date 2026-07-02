@@ -1,20 +1,46 @@
 'use client'
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import { SessionSummary, ZONE_COLORS } from '@/lib/types'
-import MetricCard from '@/components/MetricCard'
+import { SessionSummary, ZONE_COLORS, ZONE_LABELS, HRZone } from '@/lib/types'
+import RingGauge from '@/components/RingGauge'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
-const tooltipStyle = {
-  contentStyle: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 },
-  labelStyle: { color: 'var(--text-2)' },
-  itemStyle: { color: 'var(--text)' },
+function Stat({ label, value, unit, color }: { label: string; value: string | number; unit?: string; color?: string }) {
+  return (
+    <div style={{
+      background: 'var(--surface)', borderRadius: 12, padding: '16px 18px',
+      border: '1px solid var(--border)',
+    }}>
+      <p style={{ fontSize: 11, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{label}</p>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+        <span style={{ fontSize: 32, fontWeight: 700, color: color ?? 'var(--text)', lineHeight: 1 }}>{value}</span>
+        {unit && <span style={{ fontSize: 13, color: 'var(--text-2)' }}>{unit}</span>}
+      </div>
+    </div>
+  )
+}
+
+function ZoneBar({ zone, ticks, maxTicks }: { zone: number; ticks: number; maxTicks: number }) {
+  const pct   = maxTicks > 0 ? (ticks / maxTicks) * 100 : 0
+  const color = ZONE_COLORS[zone as HRZone]
+  const label = ZONE_LABELS[zone as HRZone]
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontSize: 11, color: 'var(--text-2)', width: 80, flexShrink: 0 }}>{label}</span>
+      <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--surface-2)', overflow: 'hidden' }}>
+        <div style={{
+          width: `${pct}%`, height: '100%', borderRadius: 4,
+          background: color, transition: 'width 0.6s ease',
+        }} />
+      </div>
+      <span style={{ fontSize: 11, color: 'var(--text-3)', width: 32, textAlign: 'right', flexShrink: 0 }}>{ticks}</span>
+    </div>
+  )
 }
 
 function SummaryContent() {
-  const params = useSearchParams()
+  const params    = useSearchParams()
   const sessionId = params.get('id')
   const [summary, setSummary] = useState<SessionSummary | null>(null)
   const [loading, setLoading] = useState(false)
@@ -23,143 +49,114 @@ function SummaryContent() {
     if (!sessionId) return
     setLoading(true)
     fetch(`${API}/api/session/${sessionId}`)
-      .then(r => r.json())
-      .then(setSummary)
-      .finally(() => setLoading(false))
+      .then(r => r.json()).then(setSummary).finally(() => setLoading(false))
   }, [sessionId])
 
-  if (!sessionId) return (
-    <p style={{ color: 'var(--text-2)', fontSize: 13 }}>No session selected. End a session from the Live page.</p>
-  )
-  if (loading) return <p style={{ color: 'var(--text-2)', fontSize: 13 }}>Loading...</p>
-  if (!summary || 'error' in summary) return (
-    <p style={{ color: 'var(--text-2)', fontSize: 13 }}>Session not found.</p>
-  )
+  if (!sessionId)   return <p style={{ color: 'var(--text-2)', fontSize: 13 }}>No session selected — end a session from the Live page.</p>
+  if (loading)      return <p style={{ color: 'var(--text-2)', fontSize: 13 }}>Loading...</p>
+  if (!summary || 'error' in summary) return <p style={{ color: 'var(--text-2)', fontSize: 13 }}>Session not found.</p>
 
-  const zoneData = Object.entries(summary.zone_dist ?? {}).map(([zone, ticks]) => ({
-    zone: `Z${zone}`, ticks: ticks as number,
-    fill: ZONE_COLORS[Number(zone) as 1|2|3|4|5],
-  }))
+  const q         = summary.quality_score ?? 0
+  const qColor    = q >= 70 ? 'var(--green)' : q >= 40 ? 'var(--amber)' : 'var(--red)'
+  const strainPct = Math.min(100, ((summary.strain ?? 0) / 21) * 100)
+  const strainCol = strainPct > 76 ? 'var(--red)' : strainPct > 48 ? 'var(--amber)' : 'var(--green)'
 
-  const qualityColor = summary.quality_score >= 70 ? 'var(--green)'
-    : summary.quality_score >= 40 ? 'var(--amber)' : 'var(--red)'
+  const zoneData  = Object.entries(summary.zone_dist ?? {})
+    .map(([z, t]) => ({ zone: Number(z), ticks: t as number }))
+    .sort((a, b) => a.zone - b.zone)
+  const maxTicks  = Math.max(...zoneData.map(d => d.ticks), 1)
+
+  const fi = summary.fatigue_index
+  const fiColor = fi != null && fi < -20 ? 'var(--red)' : fi != null && fi < -10 ? 'var(--amber)' : 'var(--green)'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, letterSpacing: '-0.02em', color: 'var(--text)' }}>
-          Session Summary
-        </h1>
-        <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '4px 0 0', fontFamily: 'monospace' }}>
-          {sessionId}
-        </p>
+        <h1 style={{ fontSize: 17, fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.01em' }}>Session Summary</h1>
+        <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3, fontFamily: 'monospace' }}>{sessionId}</p>
       </div>
 
-      {/* Quality score */}
+      {/* Ring gauges — quality + strain */}
       <div style={{
-        borderRadius: 12, padding: '22px 24px',
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+        background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)',
+        padding: '28px 16px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
       }}>
-        <div>
-          <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 500 }}>Session Quality</span>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
-            <span style={{ fontSize: 56, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.04em', color: qualityColor }}>
-              {summary.quality_score}
-            </span>
-            <span style={{ fontSize: 16, color: 'var(--text-2)' }}>/100</span>
-          </div>
-          <p style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 6, maxWidth: 280 }}>
-            {summary.quality_score >= 70 ? 'Great — optimal effort and recovery balance'
-              : summary.quality_score >= 40 ? 'Moderate — aim for more Z3-Z4 time next session'
-              : 'Low — too much Z5 or insufficient warmup'}
-          </p>
+        <div style={{ display: 'flex', justifyContent: 'center', borderRight: '1px solid var(--border)' }}>
+          <RingGauge value={q} max={100} size={120} stroke={11} color={qColor} label="Quality" sublabel="/100" />
         </div>
-        {/* Circular quality ring */}
-        <div style={{
-          width: 64, height: 64, borderRadius: '50%', flexShrink: 0,
-          border: `3px solid ${qualityColor}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 11, fontWeight: 700, color: qualityColor,
-        }}>
-          {summary.quality_score >= 70 ? 'Good' : summary.quality_score >= 40 ? 'OK' : 'Low'}
+        <div style={{ display: 'flex', justifyContent: 'center', borderRight: '1px solid var(--border)' }}>
+          <RingGauge value={strainPct} max={100} size={120} stroke={11} color={strainCol}
+            label="Strain" sublabel={`${(summary.strain ?? 0).toFixed(1)}/21`} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <RingGauge value={summary.avg_hrv ?? 0} max={80} size={120} stroke={11}
+            color="var(--blue)" label="Avg HRV" sublabel="ms" />
         </div>
       </div>
 
-      {/* Key metrics */}
+      {/* Key stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-        <MetricCard label="Avg HR"  value={summary.avg_hr?.toFixed(0) ?? '--'} unit="BPM" />
-        <MetricCard label="Peak HR" value={summary.peak_hr ?? '--'} unit="BPM"
-          highlight={summary.peak_hr > 185 ? 'red' : undefined} />
-        <MetricCard label="Avg HRV" value={summary.avg_hrv?.toFixed(1) ?? '--'} unit="ms" />
-        <MetricCard label="Strain"  value={summary.strain?.toFixed(1) ?? '--'} unit="/21"
-          highlight={summary.strain > 14 ? 'red' : summary.strain > 8 ? 'yellow' : 'green'} />
+        <Stat label="Avg HR"  value={summary.avg_hr?.toFixed(0) ?? '--'} unit="BPM" />
+        <Stat label="Peak HR" value={summary.peak_hr ?? '--'} unit="BPM"
+          color={summary.peak_hr > 185 ? 'var(--red)' : undefined} />
+        <Stat label="Power Decay" value={fi != null ? `${fi > 0 ? '+' : ''}${fi.toFixed(1)}` : '--'} unit="%" color={fiColor} />
+        <Stat label="Ticks" value={summary.total_ticks ?? '--'} unit={`≈ ${((summary.total_ticks ?? 0) * 0.5 / 60).toFixed(0)} min`} />
       </div>
 
-      {/* Zone distribution */}
+      {/* HR Zone distribution — horizontal bars (Whoop-style) */}
       {zoneData.length > 0 && (
-        <div style={{ borderRadius: 10, padding: '18px 20px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 500 }}>HR Zone Distribution</span>
-          <div style={{ height: 140, marginTop: 12 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={zoneData} barSize={28}>
-                <XAxis dataKey="zone" tick={{ fill: 'var(--text-2)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip {...tooltipStyle} />
-                <Bar dataKey="ticks" radius={[4, 4, 0, 0]}>
-                  {zoneData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+        <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', padding: '20px 20px' }}>
+          <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>
+            HR Zone Distribution
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {zoneData.map(d => (
+              <ZoneBar key={d.zone} zone={d.zone} ticks={d.ticks} maxTicks={maxTicks} />
+            ))}
           </div>
         </div>
       )}
 
       {/* Redline events */}
       {summary.redline_events?.length > 0 && (
-        <div style={{
-          borderRadius: 10, padding: '14px 16px',
-          background: 'var(--red-dim)', borderLeft: '3px solid var(--red)',
-        }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--red)', marginBottom: 10 }}>
+        <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid rgba(229,68,68,0.25)', padding: '18px 20px' }}>
+          <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
             Redline Events ({summary.redline_events.length})
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {summary.redline_events.map((e, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                <span style={{ color: 'var(--text-2)' }}>Tick {e.tick}</span>
-                <span style={{ color: 'var(--red)', fontWeight: 600 }}>{e.hr} BPM</span>
+              <div key={i} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '8px 12px', borderRadius: 8, background: 'var(--red-dim)',
+              }}>
+                <span style={{ fontSize: 12, color: 'var(--text-2)' }}>Tick {e.tick} · {(e.tick * 0.5).toFixed(0)}s</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>{e.hr} BPM</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Fatigue / power decay */}
-      {summary.fatigue_index != null && (
-        <div style={{ borderRadius: 10, padding: '14px 16px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 500 }}>Power Decay</span>
-          <p style={{
-            fontSize: 28, fontWeight: 700, margin: '4px 0 4px',
-            color: summary.fatigue_index < -20 ? 'var(--red)' :
-                   summary.fatigue_index < -10 ? 'var(--amber)' : 'var(--green)',
-          }}>
-            {summary.fatigue_index > 0 ? '+' : ''}{summary.fatigue_index?.toFixed(1)}%
-          </p>
-          <p style={{ fontSize: 12, color: 'var(--text-2)' }}>
-            {summary.fatigue_index < -20 ? 'Significant — form likely broke down in final reps'
-              : summary.fatigue_index < -10 ? 'Moderate — expected for a hard session'
-              : 'Good power consistency throughout'}
-          </p>
-        </div>
-      )}
+      {/* Session quality breakdown */}
+      <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', padding: '16px 18px' }}>
+        <p style={{ fontSize: 11, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+          Interpretation
+        </p>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
+          {q >= 70
+            ? 'Solid session — effort and recovery were well-balanced. HR zones show productive time in Z3-Z4.'
+            : q >= 40
+            ? 'Moderate session. Aim for more time in Z3-Z4 and a proper warmup next time.'
+            : 'Low score — likely too much Z5 time, poor warmup, or high fatigue going in.'}
+        </p>
+      </div>
     </div>
   )
 }
 
 export default function SummaryPage() {
   return (
-    <div style={{ padding: '28px 24px', maxWidth: 720 }}>
+    <div style={{ padding: '24px 20px', maxWidth: 680 }}>
       <Suspense fallback={<p style={{ color: 'var(--text-2)', fontSize: 13 }}>Loading...</p>}>
         <SummaryContent />
       </Suspense>

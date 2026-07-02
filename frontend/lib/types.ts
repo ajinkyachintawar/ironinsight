@@ -27,6 +27,7 @@ export interface SessionSummary {
   avg_hrv: number
   strain: number
   fatigue_index: number | null
+  total_ticks: number | null
   redline_events: { tick: number; hr: number }[]
   zone_dist: Record<string, number>
 }

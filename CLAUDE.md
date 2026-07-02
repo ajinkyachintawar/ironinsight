@@ -73,6 +73,35 @@ class WearableAdapter:
     def get_session_strain(self) -> float: ...
 ```
 
+## Current status (as of 2026-07-02)
+ALL 9 steps complete. Backend fully working. Frontend builds clean.
+
+### Running the project
+```bash
+# Backend (from ~/ironinsight)
+.venv/bin/uvicorn backend.main:app --reload
+
+# Frontend (from ~/ironinsight/frontend)
+npm run dev
+```
+
+### What's working
+- WebSocket stream: ws://localhost:8000/ws/session/{user_id}
+- REST: POST /api/user, GET /api/session/{id}, GET /api/history/{user_id}, GET /api/acwr/{user_id}
+- SQLite DB at ~/ironinsight/ironinsight.db
+- Demo user: id=479b0879-3128-41b7-a74e-83c5375dd6c1, username=ajinkya, age=25, max_hr=195
+- Frontend: http://localhost:3000 — Live, Summary, History, Persona toggle
+
+### Known issues fixed
+- WebSocket 404: was missing `uvicorn[standard]` — fixed, websockets library now installed
+- WebSocket Depends(get_db) doesn't work — fixed, DB opened manually in handler
+- Run uvicorn from ~/ironinsight NOT ~/ironinsight/backend
+
+### Next frontend work (pending)
+- UI redesign: looks AI-generated, needs professional human touch
+- Integrate test/demo controls INTO the UI (no terminal testing)
+- Use frontend-design skill for redesign
+
 ## Build order (do NOT skip steps)
 1. Mock wearable + unit tests → verify realistic physiology numbers
 2. Fatigue engine + unit tests → verify all thresholds
