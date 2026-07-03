@@ -15,6 +15,9 @@ export interface LiveTick {
   redline_event_count: number
   fatigue_index: number | null
   hrv_drop_pct: number | null
+  is_resting?: boolean
+  set_count?: number
+  rest?: { recovery_pct: number; target_hr: number; ready: boolean } | null
 }
 
 export interface SessionSummary {

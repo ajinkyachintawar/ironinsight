@@ -60,8 +60,16 @@ export function useSession(userId: string) {
     wsRef.current?.send(JSON.stringify({ action: 'start_exercise', exercise: ex }))
   }, [])
 
+  const startSet = useCallback(() => {
+    wsRef.current?.send(JSON.stringify({ action: 'start_set' }))
+  }, [])
+
+  const endSet = useCallback(() => {
+    wsRef.current?.send(JSON.stringify({ action: 'end_set' }))
+  }, [])
+
   // Cleanup on unmount
   useEffect(() => () => { wsRef.current?.close() }, [])
 
-  return { sessionId, tick, hrHistory, isActive, exercise, maxHr, endedSessionId, start, end, changeExercise }
+  return { sessionId, tick, hrHistory, isActive, exercise, maxHr, endedSessionId, start, end, changeExercise, startSet, endSet }
 }

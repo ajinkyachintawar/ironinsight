@@ -58,6 +58,9 @@ class MockWearableAdapter(WearableAdapter):
         self._recovery = self._a["recovery"]
         self._exercise: str = "UNKNOWN"
         self._ex_ticks: int = 0       # ticks since current exercise began (drives fatigue)
+        self._resting: bool = False   # True between sets — HR decays toward baseline
+        self._rest_ticks: int = 0
+        self._rest_from_hr: float = self._a["resting_hr"]  # HR at the moment rest began
 
     def set_exercise(self, name: str) -> None:
         """Switch the active movement — resets the per-set fatigue counter."""
@@ -65,6 +68,15 @@ class MockWearableAdapter(WearableAdapter):
         if self._exercise not in _EXERCISES:
             self._exercise = "UNKNOWN"
         self._ex_ticks = 0
+
+    def set_resting(self, resting: bool, current_hr: float | None = None) -> None:
+        """Toggle rest mode. On entering rest, HR decays from where it stopped
+        toward the resting baseline — this is the recovery curve the rest timer
+        reads to decide when you're ready for the next set."""
+        if resting and not self._resting:
+            self._rest_from_hr = current_hr if current_hr is not None else self._compute_hr()
+            self._rest_ticks = 0
+        self._resting = resting
 
     # ------------------------------------------------------------------
     # Public API (WearableAdapter interface)
@@ -76,6 +88,8 @@ class MockWearableAdapter(WearableAdapter):
         # short exercise window from sampling a near-zero trough of the sine.
         self._effort = 0.45 + 0.55 * (math.sin(self._t) + 1) / 2   # 0.45–1.0
         self._ex_ticks += 1
+        if self._resting:
+            self._rest_ticks += 1
 
         hr = self._compute_hr()
         hrv = self._compute_hrv(hr)
@@ -114,8 +128,15 @@ class MockWearableAdapter(WearableAdapter):
         The ceiling depends on the movement: a squat drives HR to ~92% max,
         a curl only to ~66%. This is what makes "curls spiking you into Z4"
         a detectable anomaly.
+
+        During rest, HR decays exponentially from where the set ended toward
+        the resting baseline — a realistic post-effort recovery curve.
         """
         resting = self._a["resting_hr"]
+        if self._resting:
+            # Exponential recovery; tuned so a fit adult hits the ~60% target
+            # around 25-40s of rest, tapering toward baseline after that
+            return resting + (self._rest_from_hr - resting) * math.exp(-0.02 * self._rest_ticks)
         max_hr = self._a["max_hr"]
         peak_pct = _EXERCISES[self._exercise]["hr_peak_pct"]
         target = resting + self._effort * (max_hr * peak_pct - resting)

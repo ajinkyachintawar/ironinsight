@@ -64,6 +64,26 @@ def acwr_risk(ratio: float) -> str:
     return "red"
 
 
+def rest_readiness(current_hr: int, hr_at_set_end: int, resting_hr: int) -> dict:
+    """How recovered you are during rest, and whether to start the next set.
+
+    Ready = HR has shed ~60% of the climb it made during the set (back near a
+    working baseline, not all the way to true resting — that would waste time).
+        target = resting + 0.40 * (hr_at_set_end - resting)
+    Returns pct recovered (0-100, clamped) and a ready flag.
+    """
+    climb = max(1, hr_at_set_end - resting_hr)
+    target = resting_hr + 0.40 * climb
+    dropped = hr_at_set_end - current_hr
+    needed  = hr_at_set_end - target
+    pct = 0.0 if needed <= 0 else max(0.0, min(100.0, dropped / needed * 100))
+    return {
+        "recovery_pct": round(pct, 1),
+        "target_hr": round(target),
+        "ready": current_hr <= target,
+    }
+
+
 def zone_time_distribution(hr_series: list[int], max_hr: int) -> dict:
     """Count ticks spent in each HR zone."""
     dist = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}

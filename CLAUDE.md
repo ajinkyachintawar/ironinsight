@@ -171,6 +171,19 @@ npm run dev
 | ACWR sweet spot | 0.8-1.3 | >1.5 = injury risk |
 | Session quality score | 0-100 | — |
 
+## Future direction — exercise auto-detection (ML)
+The manual exercise-tag UI doubles as a labeling tool: every tagged session is
+free training data (sensor stream → exercise label). The trainable signal for
+*which* exercise is **motion (accelerometer/gyro), NOT heart rate** — HR tells
+you how hard, not what movement; squat vs deadlift look identical on HR alone.
+A 3-axis accelerometer (~50Hz from phone IMU / smartwatch / machine sensor)
+classifies exercises at 90%+ with a small CNN or windowed-feature model.
+Path: collect (motion + HR + label) → train → drop manual tag → predict.
+Architecture already supports it: add a `phone_imu.py` / `watch.py` adapter
+that emits a `motion` field. HR stays as the intensity/fatigue signal (our
+actual differentiator); motion becomes the identity signal. Not in POC scope —
+mock streams no motion data yet.
+
 ## DO NOTs
 - No hardcoded AWS credentials anywhere
 - No Windows-specific subprocess calls (taskkill)

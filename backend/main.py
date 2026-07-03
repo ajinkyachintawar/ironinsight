@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session as DBSession
 from .db import init_db, get_db
 from .adapters.mock import MockWearableAdapter
 from .engines.fatigue import FatigueEngine
+from .engines import metrics as mx
 from . import session_manager as sm
 
 
@@ -82,6 +83,10 @@ async def session_ws(websocket: WebSocket, user_id: str):
 
     current_exercise  = "UNKNOWN"
     exercise_ticks: dict[str, list] = {}   # exercise → list of {hr, power}
+    is_resting        = False
+    hr_at_set_end     = rest_hr
+    last_hr           = rest_hr
+    set_count         = 0
 
     # Notify client of session_id + user's real max HR immediately
     await websocket.send_text(json.dumps({
@@ -95,26 +100,46 @@ async def session_ws(websocket: WebSocket, user_id: str):
             try:
                 raw = await asyncio.wait_for(websocket.receive_text(), timeout=0.01)
                 cmd = json.loads(raw)
-                if cmd.get("action") == "start_exercise":
+                action = cmd.get("action")
+                if action == "start_exercise":
                     current_exercise = cmd.get("exercise", "UNKNOWN").upper()
                     adapter.set_exercise(current_exercise)
-                elif cmd.get("action") == "end_session":
+                elif action == "start_set":
+                    # Coming off rest into a new working set
+                    is_resting = False
+                    adapter.set_resting(False)
+                    set_count += 1
+                elif action == "end_set":
+                    # Set finished — begin rest, HR decays from here
+                    is_resting = True
+                    hr_at_set_end = last_hr
+                    adapter.set_resting(True, last_hr)
+                elif action == "end_session":
                     break
             except asyncio.TimeoutError:
                 pass
 
             metrics = adapter.get_live_metrics()
+            last_hr = metrics["hr"]
             fatigue = engine.process_tick(hr=metrics["hr"], hrv=metrics["hrv"], power=metrics["power"])
 
-            # Accumulate per-exercise stats
-            ex = current_exercise
-            if ex not in exercise_ticks:
-                exercise_ticks[ex] = []
-            exercise_ticks[ex].append({"hr": metrics["hr"], "power": metrics["power"]})
+            # Only count effort ticks (not rest) toward per-exercise stats
+            if not is_resting:
+                ex = current_exercise
+                if ex not in exercise_ticks:
+                    exercise_ticks[ex] = []
+                exercise_ticks[ex].append({"hr": metrics["hr"], "power": metrics["power"]})
+
+            rest = None
+            if is_resting:
+                rest = mx.rest_readiness(metrics["hr"], hr_at_set_end, rest_hr)
 
             await websocket.send_text(json.dumps({
                 "session_id":  session_id,
                 "exercise":    current_exercise,
+                "is_resting":  is_resting,
+                "set_count":   set_count,
+                "rest":        rest,
                 **metrics,
                 **fatigue,
             }))

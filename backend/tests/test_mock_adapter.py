@@ -122,3 +122,20 @@ if __name__ == "__main__":
             failed += 1
     print(f"\n{'='*40}")
     print(f"Results: {passed} passed, {failed} failed")
+
+
+def test_rest_recovery_curve():
+    """During rest, HR decays toward baseline and readiness reaches 'ready'."""
+    from backend.engines.metrics import rest_readiness
+    a = MockWearableAdapter()
+    a.set_exercise("SQUAT")
+    for _ in range(30):
+        m = a.get_live_metrics()
+    hr_stop = m["hr"]
+    a.set_resting(True, hr_stop)
+    # Rest for 60s (120 ticks) and confirm HR dropped and we became ready
+    for _ in range(120):
+        r = a.get_live_metrics()
+    rd = rest_readiness(r["hr"], hr_stop, 62)
+    assert r["hr"] < hr_stop, f"HR should drop during rest: {r['hr']} vs {hr_stop}"
+    assert rd["ready"], f"Should be ready after 60s rest: {rd}"

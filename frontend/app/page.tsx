@@ -46,7 +46,7 @@ function Tile({ label, value, unit, sub, accent }: {
 }
 
 export default function LivePage() {
-  const { tick, hrHistory, isActive, sessionId, exercise, maxHr, endedSessionId, start, end, changeExercise } = useSession(DEMO_USER)
+  const { tick, hrHistory, isActive, sessionId, exercise, maxHr, endedSessionId, start, end, changeExercise, startSet, endSet } = useSession(DEMO_USER)
   const backendOk = useBackendHealth()
   const router    = useRouter()
   const [showEx,  setShowEx]  = useState(false)
@@ -231,6 +231,55 @@ export default function LivePage() {
               </div>
             )}
           </div>
+
+          {/* Set + rest timer */}
+          {isActive && (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Set {tick?.set_count ? `· ${tick.set_count} done` : ''}
+                </p>
+                {tick?.is_resting && (
+                  <span style={{ fontSize: 12, fontWeight: 600, color: tick.rest?.ready ? '#28cc6b' : '#f0a030' }}>
+                    {tick.rest?.ready ? 'Ready' : 'Recovering'}
+                  </span>
+                )}
+              </div>
+
+              {tick?.is_resting && tick.rest ? (
+                <>
+                  {/* Recovery progress */}
+                  <div style={{ height: 8, borderRadius: 4, background: 'var(--surface-2)', overflow: 'hidden', marginBottom: 8 }}>
+                    <div style={{
+                      width: `${tick.rest.recovery_pct}%`, height: '100%', borderRadius: 4,
+                      background: tick.rest.ready ? '#28cc6b' : '#f0a030', transition: 'width 0.4s ease',
+                    }} />
+                  </div>
+                  <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>
+                    {tick.rest.ready
+                      ? `Recovered — HR ${tick.hr}, ready for your next set.`
+                      : `HR ${tick.hr}, target ${tick.rest.target_hr}. ${Math.round(tick.rest.recovery_pct)}% recovered.`}
+                  </p>
+                  <button onClick={startSet} style={{
+                    width: '100%', padding: '11px', borderRadius: 10, fontSize: 14, fontWeight: 600,
+                    background: tick.rest.ready ? '#28cc6b' : 'var(--surface-2)',
+                    color: tick.rest.ready ? '#040608' : 'var(--text)',
+                    border: tick.rest.ready ? 'none' : '1px solid var(--border)', cursor: 'pointer',
+                  }}>
+                    Start Next Set
+                  </button>
+                </>
+              ) : (
+                <button onClick={endSet} style={{
+                  width: '100%', padding: '11px', borderRadius: 10, fontSize: 14, fontWeight: 600,
+                  background: 'var(--surface-2)', color: 'var(--text)',
+                  border: '1px solid var(--border)', cursor: 'pointer',
+                }}>
+                  End Set &amp; Rest
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Session control */}
           {!isActive ? (
