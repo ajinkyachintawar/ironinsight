@@ -97,19 +97,20 @@ async def session_ws(websocket: WebSocket, user_id: str):
                 cmd = json.loads(raw)
                 if cmd.get("action") == "start_exercise":
                     current_exercise = cmd.get("exercise", "UNKNOWN").upper()
+                    adapter.set_exercise(current_exercise)
                 elif cmd.get("action") == "end_session":
                     break
             except asyncio.TimeoutError:
                 pass
 
             metrics = adapter.get_live_metrics()
-            fatigue = engine.process_tick(hr=metrics["hr"], hrv=metrics["hrv"], power=160.0)
+            fatigue = engine.process_tick(hr=metrics["hr"], hrv=metrics["hrv"], power=metrics["power"])
 
             # Accumulate per-exercise stats
             ex = current_exercise
             if ex not in exercise_ticks:
                 exercise_ticks[ex] = []
-            exercise_ticks[ex].append({"hr": metrics["hr"], "power": 160.0})
+            exercise_ticks[ex].append({"hr": metrics["hr"], "power": metrics["power"]})
 
             await websocket.send_text(json.dumps({
                 "session_id":  session_id,
@@ -123,6 +124,7 @@ async def session_ws(websocket: WebSocket, user_id: str):
         pass
     finally:
         # Build per-exercise summary
+        from .engines.metrics import fatigue_index as _fatigue_index
         exercises = []
         for name, ticks in exercise_ticks.items():
             hrs   = [t["hr"] for t in ticks]
@@ -132,7 +134,7 @@ async def session_ws(websocket: WebSocket, user_id: str):
                 "avg_hr":        round(sum(hrs) / len(hrs), 1),
                 "peak_hr":       max(hrs),
                 "avg_power":     round(sum(pwrs) / len(pwrs), 1),
-                "fatigue_index": None,  # needs rep-level data; wired in Step 6
+                "fatigue_index": _fatigue_index(pwrs),
             })
 
         summary = sm.end_session(

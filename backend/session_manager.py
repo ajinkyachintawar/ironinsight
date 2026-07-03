@@ -135,8 +135,20 @@ def _serialize_session(s: Session) -> dict:
         "avg_hr":        s.avg_hr,
         "peak_hr":       s.peak_hr,
         "avg_hrv":       s.avg_hrv,
+        "total_ticks":   s.total_ticks,
         "strain":        s.strain,
         "fatigue_index": s.fatigue_index,
         "redline_events": s.redline_events or [],
         "zone_dist":     s.zone_dist or {},
+        "exercises": [
+            {
+                "name":          e.name,
+                "avg_hr":        e.avg_hr,
+                "peak_hr":       e.peak_hr,
+                "avg_power":     e.avg_power,
+                "fatigue_index": e.fatigue_index,
+            }
+            for e in s.exercises
+            if e.name != "UNKNOWN"
+        ],
     }

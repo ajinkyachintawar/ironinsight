@@ -12,7 +12,7 @@ def collect_ticks(adapter, n=80):
 def test_output_keys():
     a = MockWearableAdapter()
     m = a.get_live_metrics()
-    assert set(m.keys()) == {"hr", "hrv", "strain", "recovery", "source"}
+    assert set(m.keys()) == {"hr", "hrv", "power", "strain", "recovery", "source"}
     assert m["source"] == "mock"
 
 

@@ -30,6 +30,15 @@ export interface SessionSummary {
   total_ticks: number | null
   redline_events: { tick: number; hr: number }[]
   zone_dist: Record<string, number>
+  exercises?: ExerciseLog[]
+}
+
+export interface ExerciseLog {
+  name: string
+  avg_hr: number | null
+  peak_hr: number | null
+  avg_power: number | null
+  fatigue_index: number | null
 }
 
 export type Persona = 'athlete' | 'trainer' | 'doctor'

@@ -6,6 +6,14 @@ import RingGauge from '@/components/RingGauge'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
+const EX_LABELS: Record<string, string> = {
+  CURL: 'Bicep Curl', SQUAT: 'Squat', BENCH: 'Bench Press', TREAD: 'Treadmill',
+}
+// Movements that shouldn't drive a high cardiovascular load. If they do,
+// something's off (too heavy, poor breathing, under-recovered) — a wrist
+// wearable can't catch this because it doesn't know the exercise.
+const ISOLATION = new Set(['CURL'])
+
 function Stat({ label, value, unit, color }: { label: string; value: string | number; unit?: string; color?: string }) {
   return (
     <div style={{
@@ -129,6 +137,54 @@ function SummaryContent() {
             {zoneData.map(d => (
               <ZoneBar key={d.zone} zone={d.zone} ticks={d.ticks} maxTicks={maxTicks} />
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Per-exercise fingerprint — the wearable-can't-see-this section */}
+      {summary.exercises && summary.exercises.length > 0 && (
+        <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', padding: '20px 20px' }}>
+          <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>
+            By Exercise
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {summary.exercises.map((ex, i) => {
+              const flag = ISOLATION.has(ex.name) && (ex.peak_hr ?? 0) >= 150
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 14px', borderRadius: 10, background: 'var(--surface-2)',
+                  border: flag ? '1px solid rgba(240,160,48,0.4)' : '1px solid transparent',
+                }}>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+                      {EX_LABELS[ex.name] ?? ex.name}
+                    </p>
+                    {flag && (
+                      <p style={{ fontSize: 11, color: '#f0a030', marginTop: 3 }}>
+                        Unusually high HR for an isolation move — check load & breathing
+                      </p>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 18, textAlign: 'right' }}>
+                    <div>
+                      <p style={{ fontSize: 10, color: 'var(--text-3)' }}>Peak HR</p>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: flag ? '#f0a030' : 'var(--text)' }}>{ex.peak_hr ?? '--'}</p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 10, color: 'var(--text-3)' }}>Avg Power</p>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{ex.avg_power?.toFixed(0) ?? '--'}<span style={{ fontSize: 10, color: 'var(--text-2)' }}>W</span></p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 10, color: 'var(--text-3)' }}>Decay</p>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: (ex.fatigue_index ?? 0) < -20 ? '#e54444' : 'var(--text)' }}>
+                        {ex.fatigue_index != null ? `${ex.fatigue_index.toFixed(0)}%` : '--'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

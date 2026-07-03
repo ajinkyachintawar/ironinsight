@@ -20,6 +20,20 @@ _ATHLETE = {
     "recovery": 74.0,       # pre-session score
 }
 
+# Exercise-specific physiology. This is the core of what a wrist wearable
+# CAN'T know: a compound leg lift taxes the cardiovascular system far more
+# than an isolation curl, and each movement fatigues at a different rate.
+#   hr_peak_pct — fraction of max HR reached at peak effort
+#   base_power  — typical mechanical output (watts) at the start of a set
+#   decay       — power lost per tick as the set fatigues the muscle
+_EXERCISES = {
+    "SQUAT":   {"hr_peak_pct": 0.92, "base_power": 210.0, "decay": 0.006},
+    "BENCH":   {"hr_peak_pct": 0.82, "base_power": 150.0, "decay": 0.005},
+    "CURL":    {"hr_peak_pct": 0.66, "base_power": 65.0,  "decay": 0.011},
+    "TREAD":   {"hr_peak_pct": 0.85, "base_power": 95.0,  "decay": 0.001},
+    "UNKNOWN": {"hr_peak_pct": 0.88, "base_power": 160.0, "decay": 0.004},
+}
+
 
 def _add_noise(value: float, pct: float = 0.03) -> float:
     """Add ±pct% gaussian noise — real sensors aren't clean."""
@@ -42,6 +56,15 @@ class MockWearableAdapter(WearableAdapter):
         self._t: float = 0.0          # phase accumulator for sine wave
         self._effort: float = 0.0     # 0.0 (rest) → 1.0 (max effort)
         self._recovery = self._a["recovery"]
+        self._exercise: str = "UNKNOWN"
+        self._ex_ticks: int = 0       # ticks since current exercise began (drives fatigue)
+
+    def set_exercise(self, name: str) -> None:
+        """Switch the active movement — resets the per-set fatigue counter."""
+        self._exercise = name.upper() if name else "UNKNOWN"
+        if self._exercise not in _EXERCISES:
+            self._exercise = "UNKNOWN"
+        self._ex_ticks = 0
 
     # ------------------------------------------------------------------
     # Public API (WearableAdapter interface)
@@ -50,14 +73,17 @@ class MockWearableAdapter(WearableAdapter):
     def get_live_metrics(self) -> dict:
         self._t += 0.15          # advance wave — 0.15 rad per tick ≈ realistic ramp
         self._effort = (math.sin(self._t) + 1) / 2   # 0.0–1.0
+        self._ex_ticks += 1
 
         hr = self._compute_hr()
         hrv = self._compute_hrv(hr)
+        power = self._compute_power()
         self._session_strain = self._accumulate_strain(hr)
 
         return {
             "hr": round(_add_noise(hr)),
             "hrv": round(_add_noise(hrv, pct=0.05), 1),
+            "power": round(_add_noise(power, pct=0.04), 1),
             "strain": round(self._session_strain, 2),
             "recovery": round(self._recovery, 1),
             "source": "mock",
@@ -74,21 +100,36 @@ class MockWearableAdapter(WearableAdapter):
         self._session_start = time.time()
         self._t = 0.0
         self._effort = 0.0
+        self._ex_ticks = 0
 
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
 
     def _compute_hr(self) -> float:
-        """HR = resting + effort_fraction * (max - resting).
+        """HR = resting + effort_fraction * (exercise_ceiling - resting).
 
-        Effort fraction shaped by sine so it humps naturally per set.
+        The ceiling depends on the movement: a squat drives HR to ~92% max,
+        a curl only to ~66%. This is what makes "curls spiking you into Z4"
+        a detectable anomaly.
         """
         resting = self._a["resting_hr"]
         max_hr = self._a["max_hr"]
-        # Effort drives HR to ~88% max at peak, not 100% (realistic hard set)
-        target = resting + self._effort * (max_hr * 0.88 - resting)
+        peak_pct = _EXERCISES[self._exercise]["hr_peak_pct"]
+        target = resting + self._effort * (max_hr * peak_pct - resting)
         return target
+
+    def _compute_power(self) -> float:
+        """Mechanical output for the current set, decaying as the muscle fatigues.
+
+        power = base * effort * (1 - decay * ticks_into_set)
+        Isolation moves (curls) decay fastest; steady cardio barely decays.
+        """
+        prof = _EXERCISES[self._exercise]
+        fatigue_mult = max(0.4, 1.0 - prof["decay"] * self._ex_ticks)
+        # Blend effort with a floor so power never reads zero mid-set
+        effort_mult = 0.55 + 0.45 * self._effort
+        return prof["base_power"] * effort_mult * fatigue_mult
 
     def _compute_hrv(self, hr: float) -> float:
         """RMSSD drops as HR rises — empirical inverse relationship.
