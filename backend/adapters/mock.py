@@ -72,7 +72,9 @@ class MockWearableAdapter(WearableAdapter):
 
     def get_live_metrics(self) -> dict:
         self._t += 0.15          # advance wave — 0.15 rad per tick ≈ realistic ramp
-        self._effort = (math.sin(self._t) + 1) / 2   # 0.0–1.0
+        # Effort floored at 0.45: mid-set you're working, not resting. Keeps a
+        # short exercise window from sampling a near-zero trough of the sine.
+        self._effort = 0.45 + 0.55 * (math.sin(self._t) + 1) / 2   # 0.45–1.0
         self._ex_ticks += 1
 
         hr = self._compute_hr()
@@ -127,8 +129,9 @@ class MockWearableAdapter(WearableAdapter):
         """
         prof = _EXERCISES[self._exercise]
         fatigue_mult = max(0.4, 1.0 - prof["decay"] * self._ex_ticks)
-        # Blend effort with a floor so power never reads zero mid-set
-        effort_mult = 0.55 + 0.45 * self._effort
+        # Keep the sine's influence on power small so the fatigue trend (decay)
+        # dominates the first-vs-last comparison instead of sine phase.
+        effort_mult = 0.85 + 0.15 * self._effort
         return prof["base_power"] * effort_mult * fatigue_mult
 
     def _compute_hrv(self, hr: float) -> float:

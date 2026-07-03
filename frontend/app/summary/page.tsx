@@ -176,9 +176,9 @@ function SummaryContent() {
                       <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{ex.avg_power?.toFixed(0) ?? '--'}<span style={{ fontSize: 10, color: 'var(--text-2)' }}>W</span></p>
                     </div>
                     <div>
-                      <p style={{ fontSize: 10, color: 'var(--text-3)' }}>Decay</p>
+                      <p style={{ fontSize: 10, color: 'var(--text-3)' }}>Power Δ</p>
                       <p style={{ fontSize: 16, fontWeight: 700, color: (ex.fatigue_index ?? 0) < -20 ? '#e54444' : 'var(--text)' }}>
-                        {ex.fatigue_index != null ? `${ex.fatigue_index.toFixed(0)}%` : '--'}
+                        {ex.fatigue_index != null ? `${ex.fatigue_index > 0 ? '+' : ''}${ex.fatigue_index.toFixed(0)}%` : '--'}
                       </p>
                     </div>
                   </div>
