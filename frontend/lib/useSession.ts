@@ -12,10 +12,13 @@ export function useSession(userId: string) {
   const [hrHistory, setHrHistory]     = useState<number[]>([])
   const [isActive, setIsActive]       = useState(false)
   const [exercise, setExercise]       = useState('UNKNOWN')
+  const [maxHr, setMaxHr]             = useState<number>(195)
+  const [endedSessionId, setEndedSessionId] = useState<string | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
 
   const start = useCallback(() => {
     if (wsRef.current) return
+    setEndedSessionId(null)
     const ws = new WebSocket(`${WS_URL}/ws/session/${userId}`)
     wsRef.current = ws
 
@@ -23,7 +26,15 @@ export function useSession(userId: string) {
       const data = JSON.parse(e.data)
       if (data.event === 'session_started') {
         setSessionId(data.session_id)
+        if (data.max_hr) setMaxHr(data.max_hr)
         setIsActive(true)
+        return
+      }
+      if (data.event === 'session_ended') {
+        // Backend has persisted the session — safe to navigate to its summary
+        setEndedSessionId(data.session_id)
+        setIsActive(false)
+        ws.close()
         return
       }
       setTick(data as LiveTick)
@@ -40,8 +51,8 @@ export function useSession(userId: string) {
   }, [userId])
 
   const end = useCallback(() => {
+    // Don't close here — wait for the backend's session_ended confirmation
     wsRef.current?.send(JSON.stringify({ action: 'end_session' }))
-    wsRef.current?.close()
   }, [])
 
   const changeExercise = useCallback((ex: string) => {
@@ -52,5 +63,5 @@ export function useSession(userId: string) {
   // Cleanup on unmount
   useEffect(() => () => { wsRef.current?.close() }, [])
 
-  return { sessionId, tick, hrHistory, isActive, exercise, start, end, changeExercise }
+  return { sessionId, tick, hrHistory, isActive, exercise, maxHr, endedSessionId, start, end, changeExercise }
 }

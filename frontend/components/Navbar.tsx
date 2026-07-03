@@ -13,14 +13,22 @@ export default function Navbar() {
 
   return (
     <>
+      <style>{`
+        .ii-sidebar { display: none; }
+        .ii-topbar  { display: flex; }
+        @media (min-width: 768px) {
+          .ii-sidebar { display: flex; }
+          .ii-topbar  { display: none; }
+        }
+      `}</style>
       {/* Desktop sidebar */}
-      <aside style={{
+      <aside className="ii-sidebar" style={{
         width: 200, flexShrink: 0,
         background: 'var(--surface)', borderRight: '1px solid var(--border)',
         position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 20,
-        display: 'flex', flexDirection: 'column',
+        flexDirection: 'column',
         padding: '0',
-      }} className="hidden md:flex">
+      }}>
         {/* Logo */}
         <div style={{ padding: '22px 20px 18px', borderBottom: '1px solid var(--border)' }}>
           <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text)' }}>
@@ -52,12 +60,12 @@ export default function Navbar() {
       </aside>
 
       {/* Mobile top bar */}
-      <header style={{
+      <header className="ii-topbar" style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 20, height: 48,
         background: 'var(--surface)', borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        alignItems: 'center', justifyContent: 'space-between',
         padding: '0 16px',
-      }} className="md:hidden">
+      }}>
         <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
           Iron<span style={{ color: 'var(--cyan)' }}>Insight</span>
         </span>

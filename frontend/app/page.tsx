@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/useSession'
 import HRChart from '@/components/HRChart'
 import ZoneBadge from '@/components/ZoneBadge'
@@ -8,7 +9,6 @@ import { EXERCISES, HRZone } from '@/lib/types'
 
 const API       = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 const DEMO_USER = 'demo-user-001'
-const MAX_HR    = 195
 
 const EXERCISE_LABELS: Record<string, string> = {
   CURL: 'Bicep Curl', SQUAT: 'Squat', BENCH: 'Bench Press', TREAD: 'Treadmill',
@@ -46,16 +46,22 @@ function Tile({ label, value, unit, sub, accent }: {
 }
 
 export default function LivePage() {
-  const { tick, hrHistory, isActive, sessionId, exercise, start, end, changeExercise } = useSession(DEMO_USER)
+  const { tick, hrHistory, isActive, sessionId, exercise, maxHr, endedSessionId, start, end, changeExercise } = useSession(DEMO_USER)
   const backendOk = useBackendHealth()
+  const router    = useRouter()
   const [showEx,  setShowEx]  = useState(false)
+
+  // Navigate to the summary once the backend confirms the session is persisted
+  useEffect(() => {
+    if (endedSessionId) router.push(`/summary?id=${endedSessionId}`)
+  }, [endedSessionId, router])
   const [showSys, setShowSys] = useState(false)
   const [copied,  setCopied]  = useState(false)
 
   const struggling = tick?.struggling ?? false
   const redline    = tick?.redline    ?? false
-  const hrPct      = tick ? Math.round((tick.hr / MAX_HR) * 100) : null
-  const hrColor    = redline ? '#e54444' : struggling ? '#f0a030' : '#00d4e8'
+  const hrPct      = tick ? Math.round((tick.hr / maxHr) * 100) : null
+  const hrColor    = !tick ? '#404660' : redline ? '#e54444' : struggling ? '#f0a030' : '#00d4e8'
   const strainPct  = tick ? Math.min(100, (tick.strain / 21) * 100) : 0
   const strainCol  = strainPct > 76 ? '#e54444' : strainPct > 48 ? '#f0a030' : '#28cc6b'
   const recCol     = tick ? (tick.recovery >= 67 ? '#28cc6b' : tick.recovery >= 34 ? '#f0a030' : '#e54444') : '#404660'
@@ -69,10 +75,10 @@ export default function LivePage() {
 
   return (
     /* Outer padding; two-col on desktop */
-    <div style={{ padding: '28px 24px', maxWidth: 1100 }}>
+    <div style={{ padding: '16px 16px', maxWidth: 1100 }}>
 
       {/* ── Page header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text)' }}>
             Live Session
@@ -100,16 +106,16 @@ export default function LivePage() {
       </div>
 
       {/* ── Two-column desktop layout ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}
         className="md:grid-cols-[1fr_340px]">
 
         {/* LEFT column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
           {/* HR Card */}
           <div style={{
             background: 'var(--surface)', border: `2px solid ${redline ? 'rgba(229,68,68,0.5)' : struggling ? 'rgba(240,160,48,0.4)' : 'var(--border)'}`,
-            borderRadius: 18, padding: '24px 24px 18px',
+            borderRadius: 18, padding: '16px 18px 14px',
             transition: 'border-color 0.4s',
           }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -118,7 +124,7 @@ export default function LivePage() {
                   Heart Rate
                 </p>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                  <span style={{ fontSize: 80, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: hrColor }}>
+                  <span style={{ fontSize: 60, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: hrColor }}>
                     {tick?.hr ?? '--'}
                   </span>
                   <span style={{ fontSize: 18, fontWeight: 400, color: 'var(--text-2)' }}>BPM</span>
@@ -141,15 +147,15 @@ export default function LivePage() {
               </div>
             </div>
             {/* Chart */}
-            <div style={{ height: 110, marginTop: 10 }}>
-              <HRChart data={hrHistory} maxHr={MAX_HR} struggling={struggling} redline={redline} />
+            <div style={{ height: 64, marginTop: 8 }}>
+              <HRChart data={hrHistory} maxHr={maxHr} struggling={struggling} redline={redline} />
             </div>
           </div>
 
           {/* Ring gauges — Strain / Recovery / HRV Drop */}
           <div style={{
             background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 18,
-            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', padding: '24px 12px',
+            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', padding: '14px 10px',
           }}>
             <div style={{ display: 'flex', justifyContent: 'center', paddingRight: 12, borderRight: '1px solid var(--border)' }}>
               <RingGauge value={strainPct} max={100} size={120} stroke={10}
@@ -188,7 +194,7 @@ export default function LivePage() {
         </div>
 
         {/* RIGHT column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
           {/* Exercise */}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 18px' }}>

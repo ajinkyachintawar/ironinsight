@@ -83,8 +83,12 @@ async def session_ws(websocket: WebSocket, user_id: str):
     current_exercise  = "UNKNOWN"
     exercise_ticks: dict[str, list] = {}   # exercise → list of {hr, power}
 
-    # Notify client of session_id immediately
-    await websocket.send_text(json.dumps({"event": "session_started", "session_id": session_id}))
+    # Notify client of session_id + user's real max HR immediately
+    await websocket.send_text(json.dumps({
+        "event": "session_started",
+        "session_id": session_id,
+        "max_hr": max_hr,
+    }))
 
     try:
         while True:
@@ -139,3 +143,12 @@ async def session_ws(websocket: WebSocket, user_id: str):
         print(f"[{session_id}] quality={summary.get('quality_score')}/100 "
               f"avg_hr={summary.get('avg_hr')} strain={adapter.get_session_strain():.2f}")
         db.close()
+
+        # Confirm persistence so the client can safely open the summary
+        try:
+            await websocket.send_text(json.dumps({
+                "event": "session_ended",
+                "session_id": session_id,
+            }))
+        except Exception:
+            pass   # client already disconnected

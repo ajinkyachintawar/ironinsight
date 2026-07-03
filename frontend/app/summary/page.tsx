@@ -39,22 +39,38 @@ function ZoneBar({ zone, ticks, maxTicks }: { zone: number; ticks: number; maxTi
   )
 }
 
+const DEMO_USER = 'demo-user-001'
+
 function SummaryContent() {
-  const params    = useSearchParams()
-  const sessionId = params.get('id')
+  const params      = useSearchParams()
+  const paramId     = params.get('id')
   const [summary, setSummary] = useState<SessionSummary | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [empty,   setEmpty]   = useState(false)
 
   useEffect(() => {
-    if (!sessionId) return
     setLoading(true)
-    fetch(`${API}/api/session/${sessionId}`)
-      .then(r => r.json()).then(setSummary).finally(() => setLoading(false))
-  }, [sessionId])
+    setEmpty(false)
+    const load = async () => {
+      // No id → fall back to most recent session for this user
+      let id = paramId
+      if (!id) {
+        const h = await fetch(`${API}/api/history/${DEMO_USER}`).then(r => r.json()).catch(() => null)
+        id = h?.history?.[0]?.id ?? null
+      }
+      if (!id) { setEmpty(true); setLoading(false); return }
+      const s = await fetch(`${API}/api/session/${id}`).then(r => r.json()).catch(() => null)
+      setSummary(s)
+      setLoading(false)
+    }
+    load()
+  }, [paramId])
 
-  if (!sessionId)   return <p style={{ color: 'var(--text-2)', fontSize: 13 }}>No session selected — end a session from the Live page.</p>
   if (loading)      return <p style={{ color: 'var(--text-2)', fontSize: 13 }}>Loading...</p>
+  if (empty)        return <p style={{ color: 'var(--text-2)', fontSize: 13 }}>No sessions yet — start one from the Live page.</p>
   if (!summary || 'error' in summary) return <p style={{ color: 'var(--text-2)', fontSize: 13 }}>Session not found.</p>
+
+  const sessionId = summary.id
 
   const q         = summary.quality_score ?? 0
   const qColor    = q >= 70 ? 'var(--green)' : q >= 40 ? 'var(--amber)' : 'var(--red)'
